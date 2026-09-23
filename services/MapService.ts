@@ -9,6 +9,61 @@ type MapListener = (map: OccupancyGrid) => void;
 type PoseListener = (pose: RobotPose) => void;
 type NavigationListener = (state: NavigationState) => void;
 
+/** Occupancy value at a world point (-1 unknown/out of bounds, else 0..100). */
+export function cellAt(map: OccupancyGrid, x: number, y: number): number {
+  const { resolution, width, height, origin } = map.info;
+  const c = Math.floor((x - origin.position.x) / resolution);
+  const r = Math.floor((y - origin.position.y) / resolution);
+  if (c < 0 || r < 0 || c >= width || r >= height) return -1;
+  return map.data[r * width + c];
+}
+
+/**
+ * Nudge a goal onto the nearest known-free cell (ring search). Returns
+ * null when nothing traversable is nearby — better to fail locally with
+ * a clear message than have Nav2 reject the goal. Pass null for "no map
+ * yet" (treated as "assume free").
+ */
+export function snapToFree(
+  map: OccupancyGrid | null,
+  x: number,
+  y: number,
+  maxRadius: number,
+): { x: number; y: number; adjusted: boolean } | null {
+  if (!map) return { x, y, adjusted: false };
+  const FREE_MAX = 50;
+  if (cellAt(map, x, y) >= 0 && cellAt(map, x, y) <= FREE_MAX) {
+    return { x, y, adjusted: false };
+  }
+  const res = map.info.resolution;
+  for (let radius = res; radius <= maxRadius; radius += res) {
+    const steps = Math.max(8, Math.floor((2 * Math.PI * radius) / res));
+    for (let i = 0; i < steps; i++) {
+      const a = (i / steps) * Math.PI * 2;
+      const cx = x + Math.cos(a) * radius;
+      const cy = y + Math.sin(a) * radius;
+      const v = cellAt(map, cx, cy);
+      if (v >= 0 && v <= FREE_MAX) return { x: cx, y: cy, adjusted: true };
+    }
+  }
+  return null;
+}
+
+/** Translate rosbridge/action errors into something a user can act on. */
+export function friendlyGoalError(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (lower.includes('rejected')) {
+    return 'Goal rejected — that spot may be unreachable or the planner is busy. Try nearby open floor.';
+  }
+  if (lower.includes('abort')) {
+    return 'Navigation aborted — path blocked or goal unreachable.';
+  }
+  if (lower.includes('cancel')) {
+    return 'Navigation canceled.';
+  }
+  return 'Navigation failed. Try a nearby open spot.';
+}
+
 class MapService {
   private static instance: MapService;
   private ros!: ROSLIB.Ros;
@@ -169,7 +224,7 @@ class MapService {
 
     // Snap the tapped point onto known free space. Goals inside walls or in
     // unscanned (unknown) cells are rejected or unplannable by Nav2.
-    const target = this.snapToFree(x, y, 2.0);
+    const target = snapToFree(this.latestMap, x, y, 2.0);
     if (!target) {
       console.warn(`[MapService] Goal (${x.toFixed(2)}, ${y.toFixed(2)}) has no free space within 2m — not sending`);
       this.navigationState = {
@@ -238,7 +293,7 @@ class MapService {
         this.emitNavigation();
       },
       (error: string) => {
-        const friendly = this.friendlyGoalError(error);
+        const friendly = friendlyGoalError(error);
         console.warn('[MapService] Navigation failed:', friendly, `(${error})`);
         this.activeGoalId = null;
         this.navigationState = {
@@ -292,56 +347,6 @@ class MapService {
     }
     const ms = now;
     return { sec: Math.floor(ms / 1000), nanosec: (ms % 1000) * 1e6 };
-  }
-
-  /** Occupancy value at a world point (-1 unknown/out of bounds, else 0..100). */
-  private cellAt(map: OccupancyGrid, x: number, y: number): number {
-    const { resolution, width, height, origin } = map.info;
-    const c = Math.floor((x - origin.position.x) / resolution);
-    const r = Math.floor((y - origin.position.y) / resolution);
-    if (c < 0 || r < 0 || c >= width || r >= height) return -1;
-    return map.data[r * width + c];
-  }
-
-  /**
-   * Nudge a goal onto the nearest known-free cell (ring search). Returns
-   * null when nothing traversable is nearby — better to fail locally with
-   * a clear message than have Nav2 reject the goal.
-   */
-  private snapToFree(x: number, y: number, maxRadius: number): { x: number; y: number; adjusted: boolean } | null {
-    const map = this.latestMap;
-    if (!map) return { x, y, adjusted: false };
-    const FREE_MAX = 50;
-    if (this.cellAt(map, x, y) >= 0 && this.cellAt(map, x, y) <= FREE_MAX) {
-      return { x, y, adjusted: false };
-    }
-    const res = map.info.resolution;
-    for (let radius = res; radius <= maxRadius; radius += res) {
-      const steps = Math.max(8, Math.floor((2 * Math.PI * radius) / res));
-      for (let i = 0; i < steps; i++) {
-        const a = (i / steps) * Math.PI * 2;
-        const cx = x + Math.cos(a) * radius;
-        const cy = y + Math.sin(a) * radius;
-        const v = this.cellAt(map, cx, cy);
-        if (v >= 0 && v <= FREE_MAX) return { x: cx, y: cy, adjusted: true };
-      }
-    }
-    return null;
-  }
-
-  /** Translate rosbridge/action errors into something a user can act on. */
-  private friendlyGoalError(raw: string): string {
-    const lower = raw.toLowerCase();
-    if (lower.includes('rejected')) {
-      return 'Goal rejected — that spot may be unreachable or the planner is busy. Try nearby open floor.';
-    }
-    if (lower.includes('abort')) {
-      return 'Navigation aborted — path blocked or goal unreachable.';
-    }
-    if (lower.includes('cancel')) {
-      return 'Navigation canceled.';
-    }
-    return 'Navigation failed. Try a nearby open spot.';
   }
 
   private emitNavigation() {

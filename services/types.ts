@@ -55,4 +55,13 @@ export interface NavigationState {
   lastError: string | null;
 }
 
+export interface Spot {
+  title: string;
+  pose_x: number;
+  pose_y: number;
+  pose_z: number;
+  pose_theta: number;
+}
+
+export type SpotInput = Spot;
 
