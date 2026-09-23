@@ -9,6 +9,7 @@ interface MapTopBarProps {
   fullView: boolean;
   onToggleFullView: () => void;
   onOpenSettings: () => void;
+  onOpenConnect: () => void;
 }
 
 export default function MapTopBar({
@@ -16,6 +17,7 @@ export default function MapTopBar({
   fullView,
   onToggleFullView,
   onOpenSettings,
+  onOpenConnect,
 }: MapTopBarProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -41,10 +43,16 @@ export default function MapTopBar({
         </View>
       </Pressable>
 
-      <View
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={isConnected ? 'Connection online, open connect panel' : 'Connect to chair'}
+        onPress={onOpenConnect}
         style={[
           styles.statusPill,
-          { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+          {
+            backgroundColor: colors.surfaceElevated,
+            borderColor: isConnected ? colors.meadow : colors.signal,
+          },
         ]}
       >
         <View
@@ -54,9 +62,9 @@ export default function MapTopBar({
           ]}
         />
         <Text style={[styles.statusText, { color: colors.text }]}>
-          {isConnected ? 'Online' : 'Offline'}
+          {isConnected ? 'Online' : 'Connect'}
         </Text>
-      </View>
+      </Pressable>
 
       <Pressable
         style={[

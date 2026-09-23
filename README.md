@@ -20,12 +20,17 @@ Sanad (سند, "support") is an Expo mobile/web controller for a ROS wheelchair.
 cp .env.example .env
 ```
 
-Set `EXPO_PUBLIC_ROSBRIDGE_URL`:
+`EXPO_PUBLIC_ROSBRIDGE_URL` is only the **initial** address (simulator / same-machine). On a phone, use the **Connect** pill in the top bar:
 
-| Where the app runs | Value |
+- **Auto scan network** — probes your LAN (default port 9090) for rosbridge and connects to the first hit.
+- **Enter IP** — type the chair’s address (e.g. `192.168.1.20`) and Connect.
+
+The chosen URL is stored on-device (AsyncStorage) and reused on the next launch. Phone and chair must share the same Wi‑Fi; rosbridge must be reachable on the LAN (`ros2 launch rosbridge_server rosbridge_websocket_launch.xml`).
+
+| Where the app runs | Initial URL |
 |---|---|
 | Android emulator / iOS simulator / web on same machine | `ws://localhost:9090` |
-| Physical device | `ws://192.168.x.x:9090` (your machine's LAN IP — `localhost` is the phone itself) |
+| Physical device | Use Connect → auto scan or enter the chair’s LAN IP |
 
 ## Run
 
@@ -47,11 +52,13 @@ npm test           # jest unit tests (pure logic; ros bridge is mocked)
 
 ```
 app/                 expo-router screens (index = map controller, settings)
-components/          UI (TopBar, Controls, Joystick, Pin modals, …)
+components/          UI (TopBar, Connect panel, Controls, Joystick, Pin modals, …)
   map/               pure 3D modules: camera, gestures, meshes, markers, sceneSetup, texture
 contexts/            React state: Map, Navigation, Pinpoints, Joystick, Theme
 services/            ROS layer:
-  ros.ts             websocket connection (singleton, reconnect)
+  ros.ts             websocket connection (singleton, reconnect, runtime setUrl)
+  discovery.ts       LAN scan for rosbridge :9090
+  wsUrl.ts           URL normalize helpers
   MapService.ts      /map, /amcl_pose, Nav2 goal action, snap/error helpers
   SpotsService.ts    /spots/* service calls + response mapping
   VoiceService.ts    /robot/voice_command

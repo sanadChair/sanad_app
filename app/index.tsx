@@ -12,6 +12,7 @@ import MapControls from '../components/MapControls';
 import NearbyPins from '../components/NearbyPins';
 import NavigationStatus from '../components/NavigationStatus';
 import PinModals from '../components/PinModals';
+import ConnectPanel from '../components/ConnectPanel';
 import BottomBar from '../components/BottomBar';
 import type { DriveMode } from '../components/ModeIndicator';
 
@@ -36,6 +37,7 @@ export default function MapScreen() {
   // drops into free-explore; the locate button snaps back.
   const [followMode, setFollowMode] = useState(true);
   const [zoom, setZoom] = useState(1);
+  const [showConnect, setShowConnect] = useState(false);
 
   const isNavigating = status === 'goal_sent' || status === 'navigating';
 
@@ -184,6 +186,16 @@ export default function MapScreen() {
         fullView={fullView}
         onToggleFullView={handleToggleFullView}
         onOpenSettings={handleOpenSettings}
+        onOpenConnect={() => {
+          Haptics.selectionAsync();
+          setShowConnect(true);
+        }}
+      />
+
+      <ConnectPanel
+        visible={showConnect}
+        onClose={() => setShowConnect(false)}
+        isConnected={isConnected}
       />
 
       <MapControls
