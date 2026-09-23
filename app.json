@@ -52,6 +52,13 @@
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e9d91477-98d5-4f4e-81de-1168be8c435b"
+      }
+    },
+    "owner": "omarkhdr"
   }
 }
