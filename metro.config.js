@@ -20,6 +20,19 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (Object.prototype.hasOwnProperty.call(shims, moduleName)) {
     return { type: 'sourceFile', filePath: shims[moduleName] };
   }
+  // fast-png does `new TextDecoder('latin1')` at module scope, but Expo's
+  // TextDecoder only accepts UTF-8 labels — this crashes native startup
+  // as soon as roslib (and thus MapService) is imported.
+  const origin = context.originModulePath || '';
+  if (
+    origin.includes(`${path.sep}fast-png${path.sep}`) &&
+    (moduleName === './helpers/text.js' || moduleName.endsWith('/helpers/text.js'))
+  ) {
+    return {
+      type: 'sourceFile',
+      filePath: path.join(__dirname, 'shims', 'fast-png-text.js'),
+    };
+  }
   if (previousResolveRequest) {
     return previousResolveRequest(context, moduleName, platform);
   }
